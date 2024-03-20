@@ -1,0 +1,15 @@
+langchain
+llama-index
+llama-index-readers-file
+llama-index-readers-chroma
+llama-index-readers-web
+llama-parse
+dspy-ai
+anthropic
+chromadb
+unstructured
+tiktoken
+openai
+git+https://github.com/stanfordnlp/dspy.git
+python-dotenv
+gradio

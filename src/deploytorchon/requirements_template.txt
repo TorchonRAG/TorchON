@@ -1,0 +1,4 @@
+chromadb
+llama_index
+langchain
+gradio
