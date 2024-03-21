@@ -1,6 +1,6 @@
 ---
 tags: [opengpt]
-title: Torchon Tonic RAG
+title: Torchon - Tonic AI RAG
 colorFrom: blue
 colorTo: red
 sdk: gradio

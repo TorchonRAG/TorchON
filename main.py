@@ -1,3 +1,4 @@
+from huggingface_hub import HfApi
 import llama_index
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
@@ -59,6 +60,7 @@ import random
 from pathlib import Path
 from typing import Any, List, Dict
 import base64
+import time
 
 import chromadb
 from chromadb.utils import embedding_functions
@@ -68,8 +70,82 @@ from pydantic import BaseModel
 import gradio as gr
 from src.utils.conversation import Conversation, register_conv_template, get_conv_template, SeparatorStyle, conv_templates, setup_conversations
 from src.utils.gradio_utils import cancel_outputing, delete_last_conversation, wrap_gen_fn, reset_state, reset_textbox, State, shared_state, transfer_input
+import logging
 
 load_dotenv()
+
+class APIKeyManager:
+    @staticmethod
+    def set_api_keys(anthropic_api_key: str, openai_api_key: str, github_api_key: str, hf_token: str):
+        """
+        Function to securely set API keys by updating the .env file in the application's directory.
+        """
+        print("Setting API keys...")
+        env_path = Path('.') / '.env'
+        
+        print(f"Loading existing .env file from: {env_path}")
+        load_dotenv(dotenv_path=env_path, override=True)
+        
+        print("Updating .env file with new API keys...")
+        set_key(env_path, "ANTHROPIC_API_KEY", anthropic_api_key)
+        set_key(env_path, "OPENAI_API_KEY", openai_api_key)
+        set_key(env_path, "GITHUB_API_KEY", github_api_key)
+        set_key(env_path, "HUGGINGFACE_API_KEY", hf_token)
+        
+        print("API keys updated successfully.")
+        return "API keys updated successfully in .env file. Please proceed with your operations."
+
+    @staticmethod
+    def set_prompts(field_prompt: str, example_prompt: str, example_prompt2: str, title_prompt: str, description_prompt: str, system_prompt: str):
+        """
+        Function to securely set various prompts by updating the .env file in the application's directory.
+        """
+        print("Setting prompts...")
+        env_path = Path('.') / '.env'
+        
+        print(f"Loading existing .env file from: {env_path}")
+        load_dotenv(dotenv_path=env_path, override=True)
+        
+        print("Updating .env file with new prompts...")
+        set_key(env_path, "FIELDPROMPT", field_prompt)
+        set_key(env_path, "EXAMPLEPROMPT", example_prompt)
+        set_key(env_path, "EXAMPLE_PROMPT2", example_prompt2)
+        set_key(env_path, "TITLE_PROMPT", title_prompt)
+        set_key(env_path, "DESCRIPTIONPROMPT", description_prompt)
+        set_key(env_path, "SYSTEM_PROMPT", system_prompt)
+        
+        print("Prompts updated successfully.")
+        return "Prompts updated successfully in .env file. Please proceed with your operations."
+
+    @staticmethod
+    def load_api_keys_and_prompts():
+        """
+        Loads API keys and prompts from an existing .env file into the application's environment.
+        """
+        print("Loading API keys and prompts...")
+        env_path = Path('.') / '.env'
+        
+        print(f"Loading .env file from: {env_path}")
+        load_dotenv(dotenv_path=env_path)
+        
+        print("Accessing variables from the environment...")
+        variables = {
+            "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+            "GITHUB_API_KEY": os.getenv("GITHUB_API_KEY"),
+            "HUGGINGFACE_API_KEY": os.getenv("HUGGINGFACE_API_KEY"),
+            "FIELDPROMPT": os.getenv("FIELDPROMPT"),
+            "EXAMPLEPROMPT": os.getenv("EXAMPLEPROMPT"),
+            "EXAMPLE_PROMPT2": os.getenv("EXAMPLE_PROMPT2"),
+            "TITLE_PROMPT": os.getenv("TITLE_PROMPT"),
+            "DESCRIPTIONPROMPT": os.getenv("DESCRIPTIONPROMPT"),
+            "SYSTEM_PROMPT": os.getenv("SYSTEM_PROMPT")
+        }
+        
+        print("API keys and prompts loaded successfully.")
+        # Optionally, print a confirmation or return the loaded values
+        return variables
+
 class DataProcessor:
     def __init__(self, source_file: str, collection_name: str, persist_directory: str):
         self.source_file = source_file
@@ -136,122 +212,50 @@ class DataProcessor:
         # retriever_model(data)
 
         return data
- 
-class APIKeyManager:
-    @staticmethod
-    def set_api_keys(anthropic_api_key: str, openai_api_key: str, github_api_key: str, huggingface_api_key: str):
-        """
-        Function to securely set API keys by updating the .env file in the application's directory.
-        """
-        print("Setting API keys...")
-        env_path = Path('.') / '.env'
-        
-        print(f"Loading existing .env file from: {env_path}")
-        load_dotenv(dotenv_path=env_path, override=True)
-        
-        print("Updating .env file with new API keys...")
-        set_key(env_path, "ANTHROPIC_API_KEY", anthropic_api_key)
-        set_key(env_path, "OPENAI_API_KEY", openai_api_key)
-        set_key(env_path, "GITHUB_API_KEY", github_api_key)
-        set_key(env_path, "HUGGINGFACE_API_KEY", huggingface_api_key)
-        
-        print("API keys updated successfully.")
-        return "API keys updated successfully in .env file. Please proceed with your operations."
 
-    @staticmethod
-    def set_prompts(field_prompt: str, example_prompt: str, example_prompt2: str, title_prompt: str, description_prompt: str, system_prompt: str):
-        """
-        Function to securely set various prompts by updating the .env file in the application's directory.
-        """
-        print("Setting prompts...")
-        env_path = Path('.') / '.env'
+    def choose_reader(file_path: str) -> Optional[object]:
+        """Selects the appropriate reader for a given file based on its extension."""
+        _, file_extension = os.path.splitext(file_path)
+        file_extension = file_extension.lower()
         
-        print(f"Loading existing .env file from: {env_path}")
-        load_dotenv(dotenv_path=env_path, override=True)
-        
-        print("Updating .env file with new prompts...")
-        set_key(env_path, "FIELDPROMPT", field_prompt)
-        set_key(env_path, "EXAMPLEPROMPT", example_prompt)
-        set_key(env_path, "EXAMPLE_PROMPT2", example_prompt2)
-        set_key(env_path, "TITLE_PROMPT", title_prompt)
-        set_key(env_path, "DESCRIPTIONPROMPT", description_prompt)
-        set_key(env_path, "SYSTEM_PROMPT", system_prompt)
-        
-        print("Prompts updated successfully.")
-        return "Prompts updated successfully in .env file. Please proceed with your operations."
-
-    @staticmethod
-    def load_api_keys_and_prompts():
-        """
-        Loads API keys and prompts from an existing .env file into the application's environment.
-        """
-        print("Loading API keys and prompts...")
-        env_path = Path('.') / '.env'
-        
-        print(f"Loading .env file from: {env_path}")
-        load_dotenv(dotenv_path=env_path)
-        
-        print("Accessing variables from the environment...")
-        variables = {
-            "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-            "GITHUB_API_KEY": os.getenv("GITHUB_API_KEY"),
-            "HUGGINGFACE_API_KEY": os.getenv("HUGGINGFACE_API_KEY"),
-            "FIELDPROMPT": os.getenv("FIELDPROMPT"),
-            "EXAMPLEPROMPT": os.getenv("EXAMPLEPROMPT"),
-            "EXAMPLE_PROMPT2": os.getenv("EXAMPLE_PROMPT2"),
-            "TITLE_PROMPT": os.getenv("TITLE_PROMPT"),
-            "DESCRIPTIONPROMPT": os.getenv("DESCRIPTIONPROMPT"),
-            "SYSTEM_PROMPT": os.getenv("SYSTEM_PROMPT")
+        readers = {
+            '.csv': CSVReader,
+            '.docx': DocxReader,
+            '.epub': EpubReader,
+            '.html': HTMLTagReader,  # Assuming HTMLTagReader is for .html files
+            '.hwp': HWPReader,
+            '.ipynb': IPYNBReader,
+            '.jpg': ImageReader,
+            '.jpeg': ImageReader,
+            '.png': ImageReader,
+            '.bmp': ImageReader,
+            '.tiff': ImageReader,
+            '.gif': ImageReader,  # Assuming ImageReader can handle .gif
+            '.md': MarkdownReader,
+            '.mbox': MboxReader,
+            '.pdf': PDFReader,
+            '.pptx': PptxReader,
+            '.rtf': RTFReader,
+            '.xml': XMLReader,
+            '.txt': FlatReader,  # Assuming FlatReader is for .txt files
+            # .csv extension has multiple readers, I'm assuming PagedCSVReader and PandasCSVReader
+            # are specific cases that would be handled elsewhere, hence using CSVReader as default
         }
         
-        print("API keys and prompts loaded successfully.")
-        # Optionally, print a confirmation or return the loaded values
-        return variables
-
-def choose_reader(file_path: str) -> Optional[object]:
-    """Selects the appropriate reader for a given file based on its extension."""
-    _, file_extension = os.path.splitext(file_path)
-    file_extension = file_extension.lower()
-    
-    readers = {
-        '.csv': CSVReader,
-        '.docx': DocxReader,
-        '.epub': EpubReader,
-        '.html': HTMLTagReader,  # Assuming HTMLTagReader is for .html files
-        '.hwp': HWPReader,
-        '.ipynb': IPYNBReader,
-        '.jpg': ImageReader,
-        '.jpeg': ImageReader,
-        '.png': ImageReader,
-        '.bmp': ImageReader,
-        '.tiff': ImageReader,
-        '.gif': ImageReader,  # Assuming ImageReader can handle .gif
-        '.md': MarkdownReader,
-        '.mbox': MboxReader,
-        '.pdf': PDFReader,
-        '.pptx': PptxReader,
-        '.rtf': RTFReader,
-        '.xml': XMLReader,
-        '.txt': FlatReader,  # Assuming FlatReader is for .txt files
-        # .csv extension has multiple readers, I'm assuming PagedCSVReader and PandasCSVReader
-        # are specific cases that would be handled elsewhere, hence using CSVReader as default
-    }
-    
-    # For image files that have special readers
-    image_readers = {
-        '.jpg': ImageCaptionReader,  # or ImageTabularChartReader, ImageVisionLLMReader based on content
-        '.jpeg': ImageCaptionReader,
-        '.png': ImageTabularChartReader,
-        # Add more mappings if there are specific readers for different image types
-    }
-    
-    # If the file is an image and has a specialized reader, use that.
-    if file_extension in image_readers:
-        return image_readers[file_extension]()
-    
-    reader_class = readers.get(file_extension)
-    return reader_class() if reader_class else None
+        # For image files that have special readers
+        image_readers = {
+            '.jpg': ImageCaptionReader,  # or ImageTabularChartReader, ImageVisionLLMReader based on content
+            '.jpeg': ImageCaptionReader,
+            '.png': ImageTabularChartReader,
+            # Add more mappings if there are specific readers for different image types
+        }
+        
+        # If the file is an image and has a specialized reader, use that.
+        if file_extension in image_readers:
+            return image_readers[file_extension]()
+        
+        reader_class = readers.get(file_extension)
+        return reader_class() if reader_class else None
 
 class DocumentLoader:
 
@@ -264,7 +268,7 @@ class DocumentLoader:
             for filename in filenames:
                 full_path = os.path.join(root, filename)
                 
-                reader = choose_reader(full_path)
+                reader = DataProcessor.choose_reader(full_path)
 
                 if reader:
                     print(f"Loading document from '{filename}' with {type(reader).__name__}")
@@ -345,11 +349,21 @@ class Upsert:
 #     upserter = Upsert(data_path="./data", db_path="./chroma_db")
 #     vector_store = upserter.process_and_upsert()
 #     print("Upsert completed.")
-class DescriptionSignature(dspy.Signature):
-    """Write a simple search query that will help answer a complex question.
-    https://github.com/stanfordnlp/dspy?tab=readme-ov-file#4-two-powerful-concepts-signatures--teleprompters
-    """
 
+class MyRetriever:
+    def __init__(self, api_key):
+        default_ef = embedding_functions.DefaultEmbeddingFunction()
+        self.retriever_model = ChromadbRM(collection_name='TorchON', persist_directory='./vectorstore',embedding_function=default_ef)
+        llm = dspy.Claude(model="claude-3-opus-20240229")
+        dspy.settings.configure(lm=llm, rm=self.retriever_model)
+        self.retrieve = Retrieve(k=3)
+
+    def retrieve_passages(self, query):
+        return self.retrieve(query).passages
+    
+class DescriptionSignature(dspy.Signature):
+    """Write a simple search query that will require a complex answer.
+    """
     context = dspy.InputField(desc="may contain relevant facts")
     question = dspy.InputField()
     query = dspy.OutputField()
@@ -409,83 +423,7 @@ class SyntheticDataGenerator:
             **{field_name: dspy.OutputField(desc=properties[field_name].get('description', 'No description'))
                for field_name in properties.keys()},
         }
-
-class ClaudeModelManager:
-    def __init__(self, model: str = "claude-3-opus-20240229", api_key: Optional[str] = None, api_base: Optional[str] = None, **kwargs):
-        self.model = model
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        self.api_base = api_base
-        self.kwargs = kwargs
-        self.history = []  # Track request/response history if needed
-        self.initialize_claude(**kwargs)
-
-    def initialize_claude(self, **kwargs):
-        print("Initializing Claude...")
-        try:
-            from anthropic import Anthropic, RateLimitError
-            print("Successfully imported Anthropics's API client.")
-        except ImportError as err:
-            print("Failed to import Anthropics's API client.")
-            raise ImportError("Claude requires `pip install anthropic`.") from err
-
-        if not self.api_key:
-            raise ValueError("API key is not set. Please ensure it's provided or set in the environment variables.")
-
-        self.client = Anthropic(api_key=self.api_key, model=self.model, **kwargs)
-        print("Anthropic client initialized with model:", self.model)
-
-# # Example usage
-# kwargs = {
-#     "temperature": 0.7,
-#     "max_tokens": 2048,
-#     "top_p": 0.9,
-#     "top_k": 40,
-#     "n": 1,  # Number of generations
-#     # Add other parameters as needed
-# }
-# claude_manager = ClaudeModelManager(api_key="ANTHROPIC_API_KEY", **kwargs)    
-class ClaudeGenerate(self, **kwargs):
-    def __init__(model="claude-3-opus-20240229", api_key="ANTHROPIC_API_KEY"):
-        self.model = model
-        self.api_key = api_key
-        self.provider = "default"
-
-        self.base_url = "https://api.anthropic.com/v1/messages"
-
-    def basic_request(self, prompt: str, **kwargs):
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "anthropic-beta": "messages-2023-12-15",
-            "content-type": "application/json"
-            }
-
-        data = {
-            **kwargs,
-            "model": self.model,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-        print("Generating Using Claude...")
-        response = requests.post(self.base_url, headers=headers, json=data)
-        response = response.json()
-
-        self.history.append({
-            "prompt": prompt,
-            "response": response,
-            "kwargs": kwargs,
-        })
-        return response
-
-    def __call__(self, prompt, only_completed=True, return_sorted=False, **kwargs):
-        response = self.request(prompt, **kwargs)
-        completions = [result["text"] for result in response["content"]]
-
-        return completions
-
- 
-
+    
 class SyntheticDataHandler:
     def __init__(self, examples: Optional[List[dspy.Example]] = None):
         self.generator = SyntheticDataGenerator(examples=examples)
@@ -502,24 +440,44 @@ class SyntheticDataHandler:
         testset = [x.with_inputs('question') for x in dataset.test]
         return trainset, devset, testset
 
-# class ModelCompilationAndEnsemble:
-#     @staticmethod
-#     def compile_or_load_models(recompile, trainset, num_models=4):
-#         ensemble = []
-#         if recompile:
-#             metric_EM = dspy.evaluate.answer_exact_match
-#             tp = BootstrapFewShotWithRandomSearch(metric=metric_EM, max_bootstrapped_demos=2, num_threads=NUM_THREADS)
-#             claude_bs = tp.compile(Claude(), trainset=trainset[:50], valset=trainset[50:200])
-#             ensemble = [prog for *_, prog in claude_bs.candidate_programs[:num_models]]
-#         else:
-#             for idx in range(num_models):
-#                 claude_model = Claude(model=f'multihop_claude3opus_{idx}.json')
-#                 ensemble.append(claude_model)
-#         return ensemble
+class Question2ReportOutline(dspy.Signature):
+    """
+    Your task is to write a report that will help answer the given question. 
+    Use the contexts to evaluate the structure of the report.
+    Optimize for informational content, audience interest and describe the implications of the contexts in relation to the question.
+    """
+    
+    question = dspy.InputField()
+    contexts = dspy.InputField()
+    blog_outline = dspy.OutputField(desc="A comma separated list of topics.")
 
+class Topic2Paragraph(dspy.Signature):
+    """
+    Your task is to write a paragraph that explains a topic based on the retrieved contexts.
+    """
+    
+    topic = dspy.InputField(desc="A topic to write a paragraph about based on the information in the contexts.")
+    contexts = dspy.InputField(desc="contains relevant information about the topic.")
+    paragraph = dspy.OutputField()
+
+class ProofReader(dspy.Signature):
+    """
+    Proofread a blog post and output a more well written version of the original post.
+    """
+    
+    blog_post = dspy.InputField()
+    proofread_blog_post = dspy.OutputField()    
+
+class TitleGenerator(dspy.Signature):
+    """
+    Write a title for a blog post given a description of the topics the blog covers as input.
+    """
+
+    blog_outline = dspy.InputField()
+    title = dspy.OutputField()
 class LongFormContent(dspy.Module):
     def __init__(self):
-        self.prompt_to_outline = dspy.ChainOfThought(Question2BlogOutline)
+        self.prompt_to_outline = dspy.ChainOfThought(Question2ReportOutline)
         self.topic_to_paragraph = dspy.ChainOfThought(Topic2Paragraph)
         self.proof_reader = dspy.ChainOfThought(ProofReader)
         self.title_generator = dspy.ChainOfThought(TitleGenerator)
@@ -539,13 +497,14 @@ class LongFormContent(dspy.Module):
         title = self.title_generator(blog_outline=raw_outline).title
         final_content = f"{title}\n\n{content}"
         return dspy.Prediction(blog=final_content)
+
 class ChatbotManager:
     def __init__(self, model_name):
         self.model = model_name
         self.history = []
+        self.logger = logging.getLogger("gradio_logger")
 
     def generate_response(self, text, top_p=0.9, temperature=0.7, repetition_penalty=1.0, max_length_tokens=2048, max_context_length_tokens=1024):
-
 
         kwargs = {
             "temperature": temperature,
@@ -561,13 +520,38 @@ class ChatbotManager:
         if prompt is None:
             return "Error: Prompt generation failed.", self.history, "Generate: Failed"
 
-        gradio_chatbot_output = ClaudeGenerate(kwargs=kwargs, prompt=prompt)
+        gradio_chatbot_output = MyRetriever.retrieve_passages(query=prompt)
         self.history.append((text, gradio_chatbot_output))  
 
         return gradio_chatbot_output, self.history, "Generate: Success"
 
-    def generate_prompt_with_history( text, history, max_length=2048):
-        """
+    def configure_logger(self):
+        logger = logging.getLogger("gradio_logger")
+        logger.setLevel(logging.DEBUG)
+
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        os.makedirs("logs", exist_ok=True)
+        file_handler = logging.FileHandler(
+            f"logs/{timestr}_gradio_log.log"
+        )
+        console_handler = logging.StreamHandler()
+
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        console_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+
+        console_handler.setLevel(logging.INFO)
+        file_handler.setLevel(logging.INFO)
+
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+
+        return logger
+    
+    def generate_prompt_with_history( text, history, kwargs, max_length=2048):
+        """ 
         Generate a prompt with history for the TorchON application.
         Args:
             text (str): The text prompt.
@@ -580,7 +564,7 @@ class ChatbotManager:
         bot_role_ind = 1
 
         # Initialize conversation
-        conversation = ClaudeGenerate(kwargs=kwargs, prompt=text)
+        conversation = MyRetriever.retrieve_passages(query=text)
 
         if history:
             conversation.messages = history
@@ -618,6 +602,7 @@ class ChatbotManager:
         ret = []
         for i, (role, msg) in enumerate(conv.messages[conv.offset :]):
             if i % 2 == 0:
+                ret[-1][-1] = msg
             else:
                 ret[-1][-1] = msg
         return ret
@@ -660,13 +645,13 @@ class ChatbotManager:
         generator: A generator that yields the chatbot outputs, history, and status.
         """
         print("running the prediction function")
-        conversation = generate_prompt_with_history(
+        conversation = ChatbotManager.generate_prompt_with_history(
             text,
             history,
             max_length=max_context_length_tokens,
         )
-        prompts = convert_conversation_to_prompts(conversation)
-        gradio_chatbot_output = to_gradio_chatbot(conversation)
+        prompts = Conversation.convert_conversation_to_prompts(conversation)
+        gradio_chatbot_output = ChatbotManager.to_gradio_chatbot(conversation)
 
         full_response = ""
 
@@ -675,7 +660,7 @@ class ChatbotManager:
         print("flushed result to gradio")
 
 
-        yield gradio_chatbot_output, to_gradio_history(conversation), "Generate: Success"
+        yield gradio_chatbot_output, ChatbotManager.to_gradio_history(conversation), "Generate: Success"
 
 
     def retry(
@@ -715,7 +700,7 @@ class Application:
     def __init__(self):
         self.api_key_manager = APIKeyManager()
         self.data_processor = DataProcessor(source_file="", collection_name="adapt-a-rag", persist_directory="/your_files_here")
-        self.claude_model_manager = ClaudeModelManager()
+#       self.claude_model_manager = ClaudeModelManager()
         self.synthetic_data_handler = SyntheticDataHandler()
         self.chatbot_manager = ChatbotManager()
 
@@ -724,9 +709,11 @@ class Application:
         self.system_prompt = ""
         self.example = ""
         self.hf_token = ""
+        self.anthropic_api_key = ""
+        self.openai_api_key = ""
         
-    def set_api_keys(self, anthropic_api_key, openai_api_key):
-        return self.api_key_manager.set_api_keys(anthropic_api_key, openai_api_key)
+    def set_api_keys(self, anthropic_api_key, openai_api_key, hf_token):
+        return self.api_key_manager.set_api_keys(anthropic_api_key, openai_api_key, hf_token)
 
     def handle_file_upload(self, uploaded_file):
         self.data_processor.source_file = uploaded_file.name
@@ -750,8 +737,8 @@ class Application:
         return chatbot_response
 
     def publish(self):
-        title = strip_invalid_filename_characters(self.title, max_bytes=30) # find functions
-        api = HfApi(token=self.hf_token)
+        title = (self.title, max_bytes:=30) # find functions
+        api = (token:=self.hf_token)
         new_space = api.create_repo(
             repo_id=f"tonic-ai-torchon-{title}",
             repo_type="space",
@@ -774,12 +761,33 @@ class Application:
             token=self.hf_token,
             repo_type="space",
         )
-        api.upload_file(#chromaDB,
+        api.upload_file(
+            repo_id=new_space.repo_id,
+            path_or_fileobj='/vectorstore', #chromaDB,
+            path_in_repo='/vectorstore', #chromadb
+            token=self.hf_token,
+            repo_type="space",
         )
-        api.upload_file(# requirements.txt
+        api.upload_file(
+            repo_id=new_space.repo_id,
+            path_or_fileobj='/deploytorchon/requirements_template.txt',
+            path_in_repo='requirements.txt',
+            token=self.hf_token,
+            repo_type="space",
         )
-        add_space_secret(
+        api.upload_folder(
+            repo_id=new_space.repo_id,
+            folder_path='./vectorstore',
+            repo_type="space",
+        )
+        api.add_space_secret(
             new_space.repo_id, "HF_TOKEN", self.hf_token, token=self.hf_token
+        )
+        api.add_space_secret(
+            new_space.repo_id, "ANTHROPIC_API_KEY", self.anthropic_api_key, token=self.anthropic_api_key
+        )
+        api.add_space_secret(
+            new_space.repo_id, "SYSTEM_PROMPT", # FIX THIS PART self.anthropic_api_key, token=self.anthropic_api_key
         )
         return f"Published to https://huggingface.co/spaces/{new_space.repo_id}"
     def main(self):
@@ -801,7 +809,7 @@ class Application:
                 )
 
             with gr.Accordion("Upload Data") as upload_data_accordion:
-                file_upload = gr.File(label="Upload Data Files")  # add folder loader
+                file_upload = gr.File(label="Upload Data Files")
                 folder_upload = gr.Files(label="Upload Folder", directory=True)
                 webpage_input = gr.Textbox(label="Web Page URL")
                 github_input = gr.Textbox(label="GitHub Repository Link")
@@ -873,4 +881,3 @@ class Application:
 if __name__ == "__main__":
     app = Application()
     app.main()
-    

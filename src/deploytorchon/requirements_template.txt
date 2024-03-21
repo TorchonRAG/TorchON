@@ -1,4 +1,5 @@
 chromadb
 llama_index
+llama-index-vector-stores-chroma
 langchain
 gradio

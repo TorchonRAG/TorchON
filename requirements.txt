@@ -4,7 +4,7 @@ llama-index-readers-file
 llama-index-readers-chroma
 llama-index-readers-web
 llama-parse
-dspy-ai
+dspy-ai[chromadb]
 anthropic
 chromadb
 unstructured
@@ -13,3 +13,4 @@ openai
 git+https://github.com/stanfordnlp/dspy.git
 python-dotenv
 gradio
+huggingface_hub
