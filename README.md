@@ -82,4 +82,4 @@ Please ensure that your contributions adhere to the project's coding conventions
 
 ## License
 
-TorchON is released under the XXXX License. See the [LICENSE](LICENSE) file for more details.
+TorchON is released under the MIT License. See the [LICENSE](LICENSE) file for more details.

@@ -4,7 +4,8 @@ llama-index-readers-file
 llama-index-readers-chroma
 llama-index-readers-web
 llama-parse
-dspy-ai[chromadb]
+# dspy-ai
+# dspy
 anthropic
 chromadb
 unstructured

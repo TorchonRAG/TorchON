@@ -1,5 +1,5 @@
 # This app was made using https://github.com/tonic-ai/torchon
-
+import chromadb
 import gradio as gr
 import os
 import requests
@@ -46,25 +46,30 @@ class ClaudeModelManager:
 #     # Add other parameters as needed
 # }
 # claude_manager = ClaudeModelManager(api_key="ANTHROPIC_API_KEY", **kwargs)    
-class ClaudeGenerate(self,  systemprompt:Optional[str] = systemprompt, **kwargs):
-    def __init__(model="claude-3-opus-20240229", api_key= ANTHROPIC_API_KEY ):
+import requests
+from typing import Optional
+
+class ClaudeGenerate:
+    def __init__(self, systemprompt: Optional[str] = None, prompt: Optional[str] = None, model="claude-3-opus-20240229", api_key="ANTHROPIC_API_KEY"):
         self.model = model
         self.api_key = api_key
         self.provider = "default"
         self.base_url = "https://api.anthropic.com/v1/messages"
         self.systemprompt = systemprompt
-    def basic_request(self, prompt: str, **kwargs):
+        self.prompt = prompt
+
+    def basic_request(self, systemprompt: str, prompt: str, **kwargs):
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
             "anthropic-beta": "messages-2023-12-15",
             "content-type": "application/json"
-            }
+        }
 
         data = {
             **kwargs,
             "model": self.model,
-            "system" = self.systemprompt,
+            "system": self.systemprompt,
             "messages": [
                 {"role": "user", "content": prompt}
             ]
@@ -73,11 +78,11 @@ class ClaudeGenerate(self,  systemprompt:Optional[str] = systemprompt, **kwargs)
         response = requests.post(self.base_url, headers=headers, json=data)
         response = response.json()
 
-        self.history.append({
-            "prompt": prompt,
-            "response": response,
-            "kwargs": kwargs,
-        })
+        # self.history.append({
+        #     "prompt": prompt,
+        #     "response": response,
+        #     "kwargs": kwargs,
+        # })
         return response
 
     def __call__(self, prompt, only_completed=True, return_sorted=False, **kwargs):
@@ -86,7 +91,7 @@ class ClaudeGenerate(self,  systemprompt:Optional[str] = systemprompt, **kwargs)
 
         return completions
 
-def format_prompt(prompt: str, context: str)
+def format_prompt(prompt: str, context: str):
     formatted_prompt = "Context :\n {context}\n \nQuestion :\n{prompt}"
     return formatted_prompt
 # def predict_beta(message, chatbot=[], system_prompt=""):
@@ -117,7 +122,7 @@ def format_prompt(prompt: str, context: str)
 
 
 class ChromaRetriever:
-    def initialize_vectorstore(path="/vectorstore")
+    def initialize_vectorstore(path="/vectorstore"):
         db = chromadb.PersistentClient(path=path)
         chroma_collection = db.get_or_create_collection("torchon-tonic-ai")
         vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
@@ -126,7 +131,7 @@ class ChromaRetriever:
     #     vector_store,
     #     embed_model=embed_model,
     # )
-    def query_data(vector_store, query="what's tonic-ai")
+    def query_data(vector_store, query="what's tonic-ai"):
         """
         Query Data from the persisted index
         """

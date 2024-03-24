@@ -24,8 +24,8 @@ From https://github.com/lm-sys/FastChat/blob/main/fastchat/conversation.py
 import dataclasses
 from enum import IntEnum, auto
 from typing import Dict, List
-from os
-load_dotenv()
+from dotenv import load_dotenv
+import os
 
 class SeparatorStyle(IntEnum):
     """Separator styles."""
